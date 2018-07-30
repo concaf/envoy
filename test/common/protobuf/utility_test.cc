@@ -13,6 +13,15 @@
 
 namespace Envoy {
 
+TEST(UtilityTest, convertPercentNaN) {
+  envoy::api::v2::Cluster::CommonLbConfig common_config_;
+  common_config_.mutable_healthy_panic_threshold()->set_value(
+      std::numeric_limits<double>::quiet_NaN());
+  EXPECT_THROW(PROTOBUF_PERCENT_TO_ROUNDED_INTEGER_OR_DEFAULT(common_config_,
+                                                              healthy_panic_threshold, 100, 50),
+               EnvoyException);
+}
+
 TEST(UtilityTest, RepeatedPtrUtilDebugString) {
   Protobuf::RepeatedPtrField<ProtobufWkt::UInt32Value> repeated;
   EXPECT_EQ("[]", RepeatedPtrUtil::debugString(repeated));
@@ -211,6 +220,12 @@ TEST(UtilityTest, JsonConvertSuccess) {
   EXPECT_EQ(42, dest_duration.seconds());
 }
 
+TEST(UtilityTest, JsonConvertUnknownFieldSuccess) {
+  const ProtobufWkt::Struct obj = MessageUtil::keyValueStruct("test_key", "test_value");
+  envoy::config::bootstrap::v2::Bootstrap bootstrap;
+  EXPECT_NO_THROW(MessageUtil::jsonConvert(obj, bootstrap));
+}
+
 TEST(UtilityTest, JsonConvertFail) {
   ProtobufWkt::Duration source_duration;
   source_duration.set_seconds(-281474976710656);
@@ -260,5 +275,40 @@ TEST(DurationUtilTest, OutOfRange) {
     EXPECT_THROW(DurationUtil::durationToMilliseconds(duration), DurationUtil::OutOfRangeException);
   }
 }
+
+class TimestampUtilTest : public ::testing::Test, public ::testing::WithParamInterface<int64_t> {};
+
+TEST_P(TimestampUtilTest, SystemClockToTimestampTest) {
+  // Generate an input time_point<system_clock>,
+  std::chrono::time_point<std::chrono::system_clock> epoch_time;
+  auto time_original = epoch_time + std::chrono::milliseconds(GetParam());
+
+  // And convert that to Timestamp.
+  ProtobufWkt::Timestamp timestamp;
+  TimestampUtil::systemClockToTimestamp(time_original, timestamp);
+
+  // Then convert that Timestamp back into a time_point<system_clock>,
+  std::chrono::time_point<std::chrono::system_clock> time_reflected =
+      epoch_time +
+      std::chrono::milliseconds(Protobuf::util::TimeUtil::TimestampToMilliseconds(timestamp));
+
+  EXPECT_EQ(time_original, time_reflected);
+}
+
+INSTANTIATE_TEST_CASE_P(TimestampUtilTestAcrossRange, TimestampUtilTest,
+                        ::testing::Values(-1000 * 60 * 60 * 24 * 7, // week
+                                          -1000 * 60 * 60 * 24,     // day
+                                          -1000 * 60 * 60,          // hour
+                                          -1000 * 60,               // minute
+                                          -1000,                    // second
+                                          -1,                       // millisecond
+                                          0,
+                                          1,                      // millisecond
+                                          1000,                   // second
+                                          1000 * 60,              // minute
+                                          1000 * 60 * 60,         // hour
+                                          1000 * 60 * 60 * 24,    // day
+                                          1000 * 60 * 60 * 24 * 7 // week
+                                          ));
 
 } // namespace Envoy

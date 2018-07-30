@@ -272,7 +272,8 @@ TEST_P(ConnectionImplTest, SocketOptions) {
 
   auto option = std::make_shared<MockSocketOption>();
 
-  EXPECT_CALL(*option, setOption(_, Network::Socket::SocketState::PreBind)).WillOnce(Return(true));
+  EXPECT_CALL(*option, setOption(_, envoy::api::v2::core::SocketOption::STATE_PREBIND))
+      .WillOnce(Return(true));
   EXPECT_CALL(listener_callbacks_, onAccept_(_, _))
       .WillOnce(Invoke([&](Network::ConnectionSocketPtr& socket, bool) -> void {
         socket->addOption(option);
@@ -320,7 +321,8 @@ TEST_P(ConnectionImplTest, SocketOptionsFailureTest) {
 
   auto option = std::make_shared<MockSocketOption>();
 
-  EXPECT_CALL(*option, setOption(_, Network::Socket::SocketState::PreBind)).WillOnce(Return(false));
+  EXPECT_CALL(*option, setOption(_, envoy::api::v2::core::SocketOption::STATE_PREBIND))
+      .WillOnce(Return(false));
   EXPECT_CALL(listener_callbacks_, onAccept_(_, _))
       .WillOnce(Invoke([&](Network::ConnectionSocketPtr& socket, bool) -> void {
         socket->addOption(option);
@@ -676,7 +678,7 @@ TEST_P(ConnectionImplTest, WriteWithWatermarks) {
   EXPECT_CALL(*client_write_buffer_, move(_))
       .WillRepeatedly(DoAll(AddBufferToStringWithoutDraining(&data_written),
                             Invoke(client_write_buffer_, &MockWatermarkBuffer::baseMove)));
-  EXPECT_CALL(*client_write_buffer_, write(_)).WillOnce(Invoke([&](int fd) -> int {
+  EXPECT_CALL(*client_write_buffer_, write(_)).WillOnce(Invoke([&](int fd) -> std::tuple<int, int> {
     dispatcher_->exit();
     return client_write_buffer_->failWrite(fd);
   }));
@@ -762,7 +764,7 @@ TEST_P(ConnectionImplTest, WatermarkFuzzing) {
         .WillOnce(Invoke(client_write_buffer_, &MockWatermarkBuffer::baseMove));
     EXPECT_CALL(*client_write_buffer_, write(_))
         .WillOnce(DoAll(Invoke([&](int) -> void { client_write_buffer_->drain(bytes_to_flush); }),
-                        Return(bytes_to_flush)))
+                        Return(std::make_tuple(bytes_to_flush, 0))))
         .WillRepeatedly(testing::Invoke(client_write_buffer_, &MockWatermarkBuffer::failWrite));
     client_connection_->write(buffer_to_write, false);
     dispatcher_->run(Event::Dispatcher::RunType::NonBlock);

@@ -96,7 +96,6 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "lc_trie_lib",
-    srcs = ["lc_trie.cc"],
     hdrs = ["lc_trie.h"],
     external_deps = ["abseil_int128"],
     deps = [
@@ -182,6 +181,7 @@ envoy_cc_library(
     external_deps = ["abseil_optional"],
     deps = [
         ":address_lib",
+        "//include/envoy/api:os_sys_calls_interface",
         "//include/envoy/network:listen_socket_interface",
         "//source/common/api:os_sys_calls_lib",
         "//source/common/common:assert_lib",
@@ -215,6 +215,7 @@ envoy_cc_library(
         ":socket_option_lib",
         "//include/envoy/network:listen_socket_interface",
         "//source/common/common:logger_lib",
+        "@envoy_api//envoy/api/v2/core:address_cc",
     ],
 )
 
@@ -226,6 +227,7 @@ envoy_cc_library(
         ":address_lib",
         "//include/envoy/network:connection_interface",
         "//include/envoy/stats:stats_interface",
+        "//source/common/api:os_sys_calls_lib",
         "//source/common/common:assert_lib",
         "//source/common/common:utility_lib",
         "//source/common/protobuf",
