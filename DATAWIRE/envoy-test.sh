@@ -14,4 +14,4 @@ fi
 
 ENVOY_JSON="${HERE}/envoy-test.json"
 
-"$ENVOY" -c "$ENVOY_JSON" -l debug 2>&1 | egrep --color 'ExtAuth|deferring|deferred|$'
+"$ENVOY" --allow-deprecated-v1-api -c "$ENVOY_JSON" -l debug 2>&1 | egrep --color 'ExtAuth|deferring|deferred|$'
