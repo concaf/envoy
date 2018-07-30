@@ -11,6 +11,7 @@ envoy_package()
 envoy_cc_library(
     name = "address_interface",
     hdrs = ["address.h"],
+    deps = ["//include/envoy/api:os_sys_calls_interface"],
 )
 
 envoy_cc_library(
@@ -62,7 +63,10 @@ envoy_cc_library(
 envoy_cc_library(
     name = "listen_socket_interface",
     hdrs = ["listen_socket.h"],
-    deps = ["//include/envoy/network:address_interface"],
+    deps = [
+        "//include/envoy/network:address_interface",
+        "@envoy_api//envoy/api/v2/core:base_cc",
+    ],
 )
 
 envoy_cc_library(
