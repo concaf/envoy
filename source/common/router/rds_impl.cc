@@ -16,7 +16,6 @@
 #include "common/config/utility.h"
 #include "common/protobuf/utility.h"
 #include "common/router/config_impl.h"
-#include "common/router/rds_subscription.h"
 
 namespace Envoy {
 namespace Router {
@@ -57,10 +56,12 @@ StaticRouteConfigProviderImpl::~StaticRouteConfigProviderImpl() {
 // initialization needs to be fixed.
 RdsRouteConfigSubscription::RdsRouteConfigSubscription(
     const envoy::config::filter::network::http_connection_manager::v2::Rds& rds,
-    const std::string& manager_identifier, Server::Configuration::FactoryContext& factory_context,
+    const uint64_t manager_identifier, Server::Configuration::FactoryContext& factory_context,
     const std::string& stat_prefix,
     Envoy::Router::RouteConfigProviderManagerImpl& route_config_provider_manager)
     : route_config_name_(rds.route_config_name()),
+      init_target_(fmt::format("RdsRouteConfigSubscription {}", route_config_name_),
+                   [this]() { subscription_->start({route_config_name_}, *this); }),
       scope_(factory_context.scope().createScope(stat_prefix + "rds." + route_config_name_ + ".")),
       stats_({ALL_RDS_STATS(POOL_COUNTER(*scope_))}),
       route_config_provider_manager_(route_config_provider_manager),
@@ -72,20 +73,13 @@ RdsRouteConfigSubscription::RdsRouteConfigSubscription(
       envoy::api::v2::RouteConfiguration>(
       rds.config_source(), factory_context.localInfo(), factory_context.dispatcher(),
       factory_context.clusterManager(), factory_context.random(), *scope_,
-      [this, &rds,
-       &factory_context]() -> Envoy::Config::Subscription<envoy::api::v2::RouteConfiguration>* {
-        return new RdsSubscription(Envoy::Config::Utility::generateStats(*scope_), rds,
-                                   factory_context.clusterManager(), factory_context.dispatcher(),
-                                   factory_context.random(), factory_context.localInfo(),
-                                   factory_context.scope());
-      },
       "envoy.api.v2.RouteDiscoveryService.FetchRoutes",
-      "envoy.api.v2.RouteDiscoveryService.StreamRoutes");
+      "envoy.api.v2.RouteDiscoveryService.StreamRoutes", factory_context.api());
 }
 
 RdsRouteConfigSubscription::~RdsRouteConfigSubscription() {
   // If we get destroyed during initialization, make sure we signal that we "initialized".
-  runInitializeCallbackIfAny();
+  init_target_.ready();
 
   // The ownership of RdsRouteConfigProviderImpl is shared among all HttpConnectionManagers that
   // hold a shared_ptr to it. The RouteConfigProviderManager holds weak_ptrs to the
@@ -101,7 +95,7 @@ void RdsRouteConfigSubscription::onConfigUpdate(const ResourceVector& resources,
   if (resources.empty()) {
     ENVOY_LOG(debug, "Missing RouteConfiguration for {} in onConfigUpdate()", route_config_name_);
     stats_.update_empty_.inc();
-    runInitializeCallbackIfAny();
+    init_target_.ready();
     return;
   }
   if (resources.size() != 1) {
@@ -127,24 +121,13 @@ void RdsRouteConfigSubscription::onConfigUpdate(const ResourceVector& resources,
     }
   }
 
-  runInitializeCallbackIfAny();
+  init_target_.ready();
 }
 
 void RdsRouteConfigSubscription::onConfigUpdateFailed(const EnvoyException*) {
   // We need to allow server startup to continue, even if we have a bad
   // config.
-  runInitializeCallbackIfAny();
-}
-
-void RdsRouteConfigSubscription::registerInitTarget(Init::Manager& init_manager) {
-  init_manager.registerTarget(*this);
-}
-
-void RdsRouteConfigSubscription::runInitializeCallbackIfAny() {
-  if (initialize_callback_) {
-    initialize_callback_();
-    initialize_callback_ = nullptr;
-  }
+  init_target_.ready();
 }
 
 RdsRouteConfigProviderImpl::RdsRouteConfigProviderImpl(
@@ -202,9 +185,7 @@ Router::RouteConfigProviderPtr RouteConfigProviderManagerImpl::createRdsRouteCon
     Server::Configuration::FactoryContext& factory_context, const std::string& stat_prefix) {
 
   // RdsRouteConfigSubscriptions are unique based on their serialized RDS config.
-  // TODO(htuch): Full serialization here gives large IDs, could get away with a
-  // strong hash instead.
-  const std::string manager_identifier = rds.SerializeAsString();
+  const uint64_t manager_identifier = MessageUtil::hash(rds);
 
   RdsRouteConfigSubscriptionSharedPtr subscription;
 
@@ -216,7 +197,7 @@ Router::RouteConfigProviderPtr RouteConfigProviderManagerImpl::createRdsRouteCon
     subscription.reset(new RdsRouteConfigSubscription(rds, manager_identifier, factory_context,
                                                       stat_prefix, *this));
 
-    subscription->registerInitTarget(factory_context.initManager());
+    factory_context.initManager().add(subscription->init_target_);
 
     route_config_subscriptions_.insert({manager_identifier, subscription});
   } else {
