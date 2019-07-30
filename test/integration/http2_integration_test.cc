@@ -1496,6 +1496,9 @@ void Http2FloodMitigationTest::startHttp2Session() {
 
 // Verify that the server detects the flood of the given frame.
 void Http2FloodMitigationTest::floodServer(const Http2Frame& frame, const std::string& flood_stat) {
+  config_helper_.setBufferLimits(1024, 1024); // Set buffer limits upstream and downstream.
+  beginSession();
+
   // pack the as many frames as we can into 16k buffer
   const int FrameCount = (16 * 1024) / frame.size();
   std::vector<char> buf(FrameCount * frame.size());

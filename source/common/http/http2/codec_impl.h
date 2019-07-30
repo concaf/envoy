@@ -349,6 +349,27 @@ protected:
   // from corresponding http2_protocol_options. Default value is 10.
   const uint32_t max_inbound_window_update_frames_per_data_frame_sent_;
 
+  // Set if the type of frame that is about to be sent is PING or SETTINGS with the ACK flag set, or
+  // RST_STREAM.
+  bool is_outbound_flood_monitored_control_frame_ = 0;
+  // This counter keeps track of the number of outbound frames of all types (these that were
+  // buffered in the underlying connection but not yet written into the socket). If this counter
+  // exceeds the `max_outbound_frames_' value the connection is terminated.
+  uint32_t outbound_frames_ = 0;
+  // Maximum number of outbound frames. Initialized from corresponding http2_protocol_options.
+  // Default value is 10000.
+  const uint32_t max_outbound_frames_;
+  const Buffer::OwnedBufferFragmentImpl::Releasor frame_buffer_releasor_;
+  // This counter keeps track of the number of outbound frames of types PING, SETTINGS and
+  // RST_STREAM (these that were buffered in the underlying connection but not yet written into the
+  // socket). If this counter exceeds the `max_outbound_control_frames_' value the connection is
+  // terminated.
+  uint32_t outbound_control_frames_ = 0;
+  // Maximum number of outbound frames of types PING, SETTINGS and RST_STREAM. Initialized from
+  // corresponding http2_protocol_options. Default value is 1000.
+  const uint32_t max_outbound_control_frames_;
+  const Buffer::OwnedBufferFragmentImpl::Releasor control_frame_buffer_releasor_;
+
 private:
   virtual ConnectionCallbacks& callbacks() PURE;
   virtual int onBeginHeaders(const nghttp2_frame* frame) PURE;
