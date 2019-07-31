@@ -1788,4 +1788,116 @@ TEST_P(Http2FloodMitigationTest, ZerolenHeaderAllowed) {
             test_server_->counter("http.config_test.downstream_cx_delayed_close_timeout")->value());
 }
 
+TEST_P(Http2FloodMitigationTest, EmptyHeaders) {
+  config_helper_.addConfigModifier(
+      [&](envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager& hcm)
+          -> void {
+        hcm.mutable_http2_protocol_options()
+            ->mutable_max_consecutive_inbound_frames_with_empty_payload()
+            ->set_value(0);
+      });
+  beginSession();
+
+  uint32_t request_idx = 0;
+  auto request = Http2Frame::makeEmptyHeadersFrame(request_idx);
+  sendFame(request);
+
+  tcp_client_->waitForDisconnect();
+
+  EXPECT_EQ(1, test_server_->counter("http2.inbound_empty_frames_flood")->value());
+  // Verify that connection was closed abortively
+  EXPECT_EQ(0,
+            test_server_->counter("http.config_test.downstream_cx_delayed_close_timeout")->value());
+}
+
+TEST_P(Http2FloodMitigationTest, EmptyHeadersContinuation) {
+  beginSession();
+
+  uint32_t request_idx = 0;
+  auto request = Http2Frame::makeEmptyHeadersFrame(request_idx);
+  sendFame(request);
+
+  for (int i = 0; i < 2; i++) {
+    request = Http2Frame::makeEmptyContinuationFrame(request_idx);
+    sendFame(request);
+  }
+
+  tcp_client_->waitForDisconnect();
+
+  EXPECT_EQ(1, test_server_->counter("http2.inbound_empty_frames_flood")->value());
+  // Verify that connection was closed abortively
+  EXPECT_EQ(0,
+            test_server_->counter("http.config_test.downstream_cx_delayed_close_timeout")->value());
+}
+
+TEST_P(Http2FloodMitigationTest, EmptyData) {
+  beginSession();
+  fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
+
+  uint32_t request_idx = 0;
+  auto request = Http2Frame::makePostRequest(request_idx, "host", "/");
+  sendFame(request);
+
+  for (int i = 0; i < 2; i++) {
+    request = Http2Frame::makeEmptyDataFrame(request_idx);
+    sendFame(request);
+  }
+
+  tcp_client_->waitForDisconnect();
+
+  EXPECT_EQ(1, test_server_->counter("http2.inbound_empty_frames_flood")->value());
+  // Verify that connection was closed abortively
+  EXPECT_EQ(0,
+            test_server_->counter("http.config_test.downstream_cx_delayed_close_timeout")->value());
+}
+
+TEST_P(Http2FloodMitigationTest, PriorityIdleStream) {
+  beginSession();
+
+  floodServer(Http2Frame::makePriorityFrame(0, 1), "http2.inbound_priority_frames_flood");
+}
+
+TEST_P(Http2FloodMitigationTest, PriorityOpenStream) {
+  beginSession();
+  fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
+
+  // Open stream.
+  uint32_t request_idx = 0;
+  auto request = Http2Frame::makeRequest(request_idx, "host", "/");
+  sendFame(request);
+
+  floodServer(Http2Frame::makePriorityFrame(request_idx, request_idx + 1),
+              "http2.inbound_priority_frames_flood");
+}
+
+TEST_P(Http2FloodMitigationTest, PriorityClosedStream) {
+  autonomous_upstream_ = true;
+  beginSession();
+  fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
+
+  // Open stream.
+  uint32_t request_idx = 0;
+  auto request = Http2Frame::makeRequest(request_idx, "host", "/");
+  sendFame(request);
+  // Reading response marks this stream as closed in nghttp2.
+  auto frame = readFrame();
+  EXPECT_EQ(Http2Frame::Type::HEADERS, frame.type());
+
+  floodServer(Http2Frame::makePriorityFrame(request_idx, request_idx + 1),
+              "http2.inbound_priority_frames_flood");
+}
+
+TEST_P(Http2FloodMitigationTest, WindowUpdate) {
+  beginSession();
+  fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
+
+  // Open stream.
+  uint32_t request_idx = 0;
+  auto request = Http2Frame::makeRequest(request_idx, "host", "/");
+  sendFame(request);
+
+  floodServer(Http2Frame::makeWindowUpdateFrame(request_idx, 1),
+              "http2.inbound_window_update_frames_flood");
+}
+
 } // namespace Envoy

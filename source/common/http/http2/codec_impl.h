@@ -369,6 +369,40 @@ protected:
   // corresponding http2_protocol_options. Default value is 1000.
   const uint32_t max_outbound_control_frames_;
   const Buffer::OwnedBufferFragmentImpl::Releasor control_frame_buffer_releasor_;
+  // This counter keeps track of the number of consecutive inbound frames of types HEADERS,
+  // CONTINUATION and DATA with an empty payload and no end stream flag. If this counter exceeds
+  // the `max_consecutive_inbound_frames_with_empty_payload_` value the connection is terminated.
+  uint32_t consecutive_inbound_frames_with_empty_payload_ = 0;
+  // Maximum number of consecutive inbound frames of types HEADERS, CONTINUATION and DATA without
+  // a payload. Initialized from corresponding http2_protocol_options. Default value is 1.
+  const uint32_t max_consecutive_inbound_frames_with_empty_payload_;
+
+  // This counter keeps track of the number of inbound streams.
+  uint32_t inbound_streams_ = 0;
+  // This counter keeps track of the number of inbound PRIORITY frames. If this counter exceeds
+  // the value calculated using this formula:
+  //
+  //     max_inbound_priority_frames_per_stream_ * (1 + inbound_streams_)
+  //
+  // the connection is terminated.
+  uint64_t inbound_priority_frames_ = 0;
+  // Maximum number of inbound PRIORITY frames per stream. Initialized from corresponding
+  // http2_protocol_options. Default value is 100.
+  const uint32_t max_inbound_priority_frames_per_stream_;
+
+  // This counter keeps track of the number of inbound WINDOW_UPDATE frames. If this counter exceeds
+  // the value calculated using this formula:
+  //
+  //     1 + 2 * (inbound_streams_ +
+  //              max_inbound_window_update_frames_per_data_frame_sent_ * outbound_data_frames_)
+  //
+  // the connection is terminated.
+  uint64_t inbound_window_update_frames_ = 0;
+  // This counter keeps track of the number of outbound DATA frames.
+  uint64_t outbound_data_frames_ = 0;
+  // Maximum number of inbound WINDOW_UPDATE frames per outbound DATA frame sent. Initialized
+  // from corresponding http2_protocol_options. Default value is 10.
+  const uint32_t max_inbound_window_update_frames_per_data_frame_sent_;
 
 private:
   virtual ConnectionCallbacks& callbacks() PURE;
