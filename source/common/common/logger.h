@@ -41,6 +41,7 @@ namespace Logger {
   FUNCTION(hystrix)              \
   FUNCTION(init)                 \
   FUNCTION(io)                   \
+  FUNCTION(jwt)                  \
   FUNCTION(kafka)                \
   FUNCTION(lua)                  \
   FUNCTION(main)                 \
@@ -59,7 +60,8 @@ namespace Logger {
   FUNCTION(thrift)               \
   FUNCTION(tracing)              \
   FUNCTION(upstream)             \
-  FUNCTION(udp)           
+  FUNCTION(udp)                  \
+  FUNCTION(wasm)
 
 enum class Id {
   ALL_LOGGER_IDS(GENERATE_ENUM)

@@ -10,6 +10,7 @@
 #include "test/test_common/logging.h"
 #include "test/test_common/utility.h"
 
+#include "absl/hash/hash_testing.h"
 #include "absl/synchronization/blocking_counter.h"
 #include "gtest/gtest.h"
 
@@ -319,10 +320,10 @@ TEST_P(StatNameTest, HashTable) {
 }
 
 TEST_P(StatNameTest, Sort) {
-  std::vector<StatName> names{makeStat("a.c"),   makeStat("a.b"), makeStat("d.e"),
-                              makeStat("d.a.a"), makeStat("d.a"), makeStat("a.c")};
-  const std::vector<StatName> sorted_names{makeStat("a.b"), makeStat("a.c"),   makeStat("a.c"),
-                                           makeStat("d.a"), makeStat("d.a.a"), makeStat("d.e")};
+  StatNameVec names{makeStat("a.c"),   makeStat("a.b"), makeStat("d.e"),
+                    makeStat("d.a.a"), makeStat("d.a"), makeStat("a.c")};
+  const StatNameVec sorted_names{makeStat("a.b"), makeStat("a.c"),   makeStat("a.c"),
+                                 makeStat("d.a"), makeStat("d.a.a"), makeStat("d.e")};
   EXPECT_NE(names, sorted_names);
   std::sort(names.begin(), names.end(), StatNameLessThan(*table_));
   EXPECT_EQ(names, sorted_names);
@@ -535,6 +536,54 @@ TEST_P(StatNameTest, SharedStatNameStorageSetSwap) {
   EXPECT_EQ(0, set1.size());
   EXPECT_EQ(1, set2.size());
   set2.free(*table_);
+}
+
+TEST_P(StatNameTest, StatNameSet) {
+  StatNameSet set(*table_);
+
+  // Test that we get a consistent StatName object from a remembered name.
+  set.rememberBuiltin("remembered");
+  const Stats::StatName remembered = set.getStatName("remembered");
+  EXPECT_EQ("remembered", table_->toString(remembered));
+  EXPECT_EQ(remembered.data(), set.getStatName("remembered").data());
+
+  // Same test for a dynamically allocated name. The only difference between
+  // the behavior with a remembered vs dynamic name is that when looking
+  // up a remembered name, a mutex is not taken. But we have no easy way
+  // to test for that. So we'll at least cover the code.
+  const Stats::StatName dynamic = set.getStatName("dynamic");
+  EXPECT_EQ("dynamic", table_->toString(dynamic));
+  EXPECT_EQ(dynamic.data(), set.getStatName("dynamic").data());
+
+  // There's another corner case for the same "dynamic" name from a
+  // different set. Here we will get a different StatName object
+  // out of the second set, though it will share the same underlying
+  // symbol-table symbol.
+  StatNameSet set2(*table_);
+  const Stats::StatName dynamic2 = set2.getStatName("dynamic");
+  EXPECT_EQ("dynamic", table_->toString(dynamic2));
+  EXPECT_EQ(dynamic2.data(), set2.getStatName("dynamic").data());
+  EXPECT_NE(dynamic2.data(), dynamic.data());
+}
+
+TEST_P(StatNameTest, StatNameEmptyEquivalent) {
+  StatName empty1;
+  StatName empty2 = makeStat("");
+  StatName non_empty = makeStat("a");
+  EXPECT_EQ(empty1, empty2);
+  EXPECT_EQ(empty1.hash(), empty2.hash());
+  EXPECT_NE(empty1, non_empty);
+  EXPECT_NE(empty2, non_empty);
+  EXPECT_NE(empty1.hash(), non_empty.hash());
+  EXPECT_NE(empty2.hash(), non_empty.hash());
+}
+
+TEST_P(StatNameTest, SupportsAbslHash) {
+  EXPECT_TRUE(absl::VerifyTypeImplementsAbslHashCorrectly({
+      StatName(),
+      makeStat(""),
+      makeStat("hello.world"),
+  }));
 }
 
 // Tests the memory savings realized from using symbol tables with 1k

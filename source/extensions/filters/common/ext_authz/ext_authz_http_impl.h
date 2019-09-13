@@ -35,17 +35,17 @@ public:
 
 class HeaderKeyMatcher : public Matcher {
 public:
-  HeaderKeyMatcher(std::vector<Matchers::LowerCaseStringMatcher>&& list);
+  HeaderKeyMatcher(std::vector<Matchers::LowerCaseStringMatcherPtr>&& list);
 
   bool matches(absl::string_view key) const override;
 
 private:
-  const std::vector<Matchers::LowerCaseStringMatcher> matchers_;
+  const std::vector<Matchers::LowerCaseStringMatcherPtr> matchers_;
 };
 
 class NotHeaderKeyMatcher : public Matcher {
 public:
-  NotHeaderKeyMatcher(std::vector<Matchers::LowerCaseStringMatcher>&& list);
+  NotHeaderKeyMatcher(std::vector<Matchers::LowerCaseStringMatcherPtr>&& list);
 
   bool matches(absl::string_view key) const override;
 
@@ -136,7 +136,7 @@ class RawHttpClientImpl : public Client,
                           Logger::Loggable<Logger::Id::config> {
 public:
   explicit RawHttpClientImpl(Upstream::ClusterManager& cm, ClientConfigSharedPtr config);
-  ~RawHttpClientImpl();
+  ~RawHttpClientImpl() override;
 
   // ExtAuthz::Client
   void cancel() override;

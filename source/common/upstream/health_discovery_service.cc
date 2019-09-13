@@ -152,7 +152,8 @@ void HdsDelegate::processMessage(
                                               info_factory_, cm_, local_info_, dispatcher_, random_,
                                               singleton_manager_, tls_, validation_visitor_, api_));
 
-    hds_clusters_.back()->startHealthchecks(access_log_manager_, runtime_, random_, dispatcher_);
+    hds_clusters_.back()->startHealthchecks(access_log_manager_, runtime_, random_, dispatcher_,
+                                            api_);
   }
 }
 
@@ -236,17 +237,18 @@ ProdClusterInfoFactory::createClusterInfo(const CreateClusterInfoParams& params)
   Network::TransportSocketFactoryPtr socket_factory =
       Upstream::createTransportSocketFactory(params.cluster_, factory_context);
 
-  return std::make_unique<ClusterInfoImpl>(params.cluster_, params.bind_config_, params.runtime_,
-                                           std::move(socket_factory), std::move(scope),
-                                           params.added_via_api_, params.validation_visitor_);
+  return std::make_unique<ClusterInfoImpl>(
+      params.cluster_, params.bind_config_, params.runtime_, std::move(socket_factory),
+      std::move(scope), params.added_via_api_, params.validation_visitor_, factory_context);
 }
 
 void HdsCluster::startHealthchecks(AccessLog::AccessLogManager& access_log_manager,
                                    Runtime::Loader& runtime, Runtime::RandomGenerator& random,
-                                   Event::Dispatcher& dispatcher) {
+                                   Event::Dispatcher& dispatcher, Api::Api& api) {
   for (auto& health_check : cluster_.health_checks()) {
-    health_checkers_.push_back(Upstream::HealthCheckerFactory::create(
-        health_check, *this, runtime, random, dispatcher, access_log_manager, validation_visitor_));
+    health_checkers_.push_back(
+        Upstream::HealthCheckerFactory::create(health_check, *this, runtime, random, dispatcher,
+                                               access_log_manager, validation_visitor_, api));
     health_checkers_.back()->start();
   }
 }

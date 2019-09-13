@@ -15,7 +15,7 @@ namespace ThreadLocal {
 class MockInstance : public Instance {
 public:
   MockInstance();
-  ~MockInstance();
+  ~MockInstance() override;
 
   MOCK_METHOD1(runOnAllThreads, void(Event::PostCb cb));
   MOCK_METHOD2(runOnAllThreads, void(Event::PostCb cb, Event::PostCb main_callback));
@@ -48,7 +48,7 @@ public:
       parent_.data_.resize(index_ + 1);
     }
 
-    ~SlotImpl() {
+    ~SlotImpl() override {
       // Do not actually clear slot data during shutdown. This mimics the production code.
       if (!parent_.shutdown_) {
         EXPECT_LT(index_, parent_.data_.size());
@@ -63,6 +63,14 @@ public:
     void runOnAllThreads(Event::PostCb cb, Event::PostCb main_callback) override {
       parent_.runOnAllThreads(cb, main_callback);
     }
+    void runOnAllThreads(const UpdateCb& cb) override {
+      parent_.runOnAllThreads([cb, this]() { parent_.data_[index_] = cb(parent_.data_[index_]); });
+    }
+    void runOnAllThreads(const UpdateCb& cb, Event::PostCb main_callback) override {
+      parent_.runOnAllThreads([cb, this]() { parent_.data_[index_] = cb(parent_.data_[index_]); },
+                              main_callback);
+    }
+
     void set(InitializeCb cb) override { parent_.data_[index_] = cb(parent_.dispatcher_); }
 
     MockInstance& parent_;

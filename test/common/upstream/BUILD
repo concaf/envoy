@@ -29,6 +29,9 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cluster_manager_impl_test",
     srcs = ["cluster_manager_impl_test.cc"],
+    external_deps = [
+        "abseil_optional",
+    ],
     deps = [
         ":utility_lib",
         "//include/envoy/stats:stats_interface",
@@ -43,8 +46,10 @@ envoy_cc_test(
         "//source/common/stats:stats_lib",
         "//source/common/upstream:cluster_factory_lib",
         "//source/common/upstream:cluster_manager_lib",
+        "//source/common/upstream:subset_lb_lib",
         "//source/extensions/transport_sockets/raw_buffer:config",
         "//source/extensions/transport_sockets/tls:context_lib",
+        "//test/integration/clusters:custom_static_cluster",
         "//test/mocks/access_log:access_log_mocks",
         "//test/mocks/api:api_mocks",
         "//test/mocks/http:http_mocks",
@@ -57,9 +62,11 @@ envoy_cc_test(
         "//test/mocks/tcp:tcp_mocks",
         "//test/mocks/thread_local:thread_local_mocks",
         "//test/mocks/upstream:upstream_mocks",
+        "//test/test_common:registry_lib",
         "//test/test_common:simulated_time_system_lib",
         "//test/test_common:threadsafe_singleton_injector_lib",
         "//test/test_common:utility_lib",
+        "@envoy_api//envoy/api/v2:cds_cc",
     ],
 )
 
@@ -109,7 +116,6 @@ envoy_cc_test(
     deps = [
         ":utility_lib",
         "//source/common/buffer:buffer_lib",
-        "//source/common/config:cds_json_lib",
         "//source/common/event:dispatcher_lib",
         "//source/common/http:headers_lib",
         "//source/common/json:json_loader_lib",
@@ -119,6 +125,7 @@ envoy_cc_test(
         "//source/common/upstream:upstream_lib",
         "//test/common/http:common_lib",
         "//test/mocks/access_log:access_log_mocks",
+        "//test/mocks/api:api_mocks",
         "//test/mocks/network:network_mocks",
         "//test/mocks/protobuf:protobuf_mocks",
         "//test/mocks/runtime:runtime_mocks",
@@ -333,6 +340,7 @@ envoy_cc_binary(
         "benchmark",
     ],
     deps = [
+        "//source/common/memory:stats_lib",
         "//source/common/upstream:maglev_lb_lib",
         "//source/common/upstream:ring_hash_lb_lib",
         "//source/common/upstream:upstream_lib",
@@ -396,7 +404,6 @@ envoy_cc_test_library(
     hdrs = ["utility.h"],
     deps = [
         "//include/envoy/stats:stats_interface",
-        "//source/common/config:cds_json_lib",
         "//source/common/json:json_loader_lib",
         "//source/common/network:utility_lib",
         "//source/common/stats:stats_lib",

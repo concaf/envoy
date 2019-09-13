@@ -11,11 +11,11 @@ load(
 envoy_package()
 
 envoy_cc_test(
-    name = "heap_allocator_test",
-    srcs = ["heap_allocator_test.cc"],
+    name = "allocator_impl_test",
+    srcs = ["allocator_impl_test.cc"],
     deps = [
-        "//source/common/stats:fake_symbol_table_lib",
-        "//source/common/stats:heap_stat_data_lib",
+        "//source/common/stats:allocator_lib",
+        "//source/common/stats:symbol_table_creator_lib",
         "//test/test_common:logging_lib",
     ],
 )
@@ -32,8 +32,8 @@ envoy_cc_test(
     name = "metric_impl_test",
     srcs = ["metric_impl_test.cc"],
     deps = [
-        "//source/common/stats:fake_symbol_table_lib",
-        "//source/common/stats:heap_stat_data_lib",
+        "//source/common/stats:allocator_lib",
+        "//source/common/stats:symbol_table_creator_lib",
         "//source/common/stats:utility_lib",
         "//test/test_common:logging_lib",
     ],
@@ -43,9 +43,9 @@ envoy_cc_test(
     name = "stat_merger_test",
     srcs = ["stat_merger_test.cc"],
     deps = [
-        "//source/common/stats:fake_symbol_table_lib",
         "//source/common/stats:isolated_store_lib",
         "//source/common/stats:stat_merger_lib",
+        "//source/common/stats:symbol_table_creator_lib",
         "//source/common/stats:thread_local_store_lib",
         "//test/test_common:utility_lib",
     ],
@@ -61,6 +61,7 @@ envoy_cc_test_library(
     deps = [
         "//source/common/common:assert_lib",
         "//source/common/memory:stats_lib",
+        "//source/common/stats:symbol_table_creator_lib",
     ],
 )
 
@@ -83,6 +84,7 @@ envoy_cc_test(
 envoy_cc_test(
     name = "symbol_table_impl_test",
     srcs = ["symbol_table_impl_test.cc"],
+    external_deps = ["abseil_hash_testing"],
     deps = [
         ":stat_test_utility_lib",
         "//source/common/common:mutex_tracer_lib",

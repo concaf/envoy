@@ -81,7 +81,7 @@ public:
   ConnectionImpl(Network::Connection& connection, Stats::Scope& stats,
                  const Http2Settings& http2_settings, const uint32_t max_request_headers_kb);
 
-  ~ConnectionImpl();
+  ~ConnectionImpl() override;
 
   // Http::Connection
   // NOTE: the `dispatch` method is also overridden in the ServerConnectionImpl class

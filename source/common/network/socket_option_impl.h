@@ -7,6 +7,7 @@
 #include "envoy/api/os_sys_calls.h"
 #include "envoy/network/listen_socket.h"
 
+#include "common/common/assert.h"
 #include "common/common/logger.h"
 
 namespace Envoy {
@@ -77,18 +78,21 @@ namespace Network {
 // Linux uses IP_PKTINFO for both sending source address and receiving destination
 // address.
 // FreeBSD uses IP_RECVDSTADDR for receiving destination address and IP_SENDSRCADDR for sending
-// source address.
+// source address. And these two have same value for convenience purpose.
 #ifdef IP_RECVDSTADDR
-#define ENVOY_RECV_IP_PKT_INFO ENVOY_MAKE_SOCKET_OPTION_NAME(IPPROTO_IP, IP_RECVDSTADDR)
-#elif IP_PKTINFO
-#define ENVOY_RECV_IP_PKT_INFO ENVOY_MAKE_SOCKET_OPTION_NAME(IPPROTO_IP, IP_PKTINFO)
-#else
-#define ENVOY_RECV_IP_PKT_INFO Network::SocketOptionName()
+#ifdef IP_SENDSRCADDR
+static_assert(IP_RECVDSTADDR == IP_SENDSRCADDR);
 #endif
+#define ENVOY_IP_PKTINFO IP_RECVDSTADDR
+#elif IP_PKTINFO
+#define ENVOY_IP_PKTINFO IP_PKTINFO
+#endif
+
+#define ENVOY_SELF_IP_ADDR ENVOY_MAKE_SOCKET_OPTION_NAME(IPPROTO_IP, ENVOY_IP_PKTINFO)
 
 // Both Linux and FreeBSD use IPV6_RECVPKTINFO for both sending source address and
 // receiving destination address.
-#define ENVOY_RECV_IPV6_PKT_INFO ENVOY_MAKE_SOCKET_OPTION_NAME(IPPROTO_IPV6, IPV6_RECVPKTINFO)
+#define ENVOY_SELF_IPV6_ADDR ENVOY_MAKE_SOCKET_OPTION_NAME(IPPROTO_IPV6, IPV6_RECVPKTINFO)
 
 class SocketOptionImpl : public Socket::Option, Logger::Loggable<Logger::Id::connection> {
 public:
@@ -100,7 +104,9 @@ public:
 
   SocketOptionImpl(envoy::api::v2::core::SocketOption::SocketState in_state,
                    Network::SocketOptionName optname, absl::string_view value)
-      : in_state_(in_state), optname_(optname), value_(value) {}
+      : in_state_(in_state), optname_(optname), value_(value.begin(), value.end()) {
+    ASSERT(reinterpret_cast<uintptr_t>(value_.data()) % alignof(void*) == 0);
+  }
 
   // Socket::Option
   bool setOption(Socket& socket,
@@ -120,17 +126,20 @@ public:
    * @param socket the socket on which to apply the option.
    * @param optname the option name.
    * @param value the option value.
+   * @param size the option value size.
    * @return a Api::SysCallIntResult with rc_ = 0 for success and rc = -1 for failure. If the call
    * is successful, errno_ shouldn't be used.
    */
   static Api::SysCallIntResult setSocketOption(Socket& socket,
                                                const Network::SocketOptionName& optname,
-                                               absl::string_view value);
+                                               const void* value, size_t size);
 
 private:
   const envoy::api::v2::core::SocketOption::SocketState in_state_;
   const Network::SocketOptionName optname_;
-  const std::string value_;
+  // This has to be a std::vector<uint8_t> but not std::string because std::string might inline
+  // the buffer so its data() is not aligned in to alignof(void*).
+  const std::vector<uint8_t> value_;
 };
 
 } // namespace Network

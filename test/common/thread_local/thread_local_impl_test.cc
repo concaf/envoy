@@ -18,7 +18,7 @@ namespace {
 
 class TestThreadLocalObject : public ThreadLocalObject {
 public:
-  ~TestThreadLocalObject() { onDestroy(); }
+  ~TestThreadLocalObject() override { onDestroy(); }
 
   MOCK_METHOD0(onDestroy, void());
 };
@@ -82,6 +82,40 @@ TEST_F(ThreadLocalInstanceImplTest, All) {
 
   EXPECT_CALL(object_ref4, onDestroy());
   EXPECT_CALL(object_ref3, onDestroy());
+  tls_.shutdownThread();
+}
+
+// Test that the config passed into the update callback is the previous version stored in the slot.
+TEST_F(ThreadLocalInstanceImplTest, UpdateCallback) {
+  InSequence s;
+
+  SlotPtr slot = tls_.allocateSlot();
+
+  auto newer_version = std::make_shared<TestThreadLocalObject>();
+  bool update_called = false;
+
+  TestThreadLocalObject& object_ref = setObject(*slot);
+  auto update_cb = [&object_ref, &update_called,
+                    newer_version](ThreadLocalObjectSharedPtr obj) -> ThreadLocalObjectSharedPtr {
+    // The unit test setup have two dispatchers registered, but only one thread, this lambda will be
+    // called twice in the same thread.
+    if (!update_called) {
+      EXPECT_EQ(obj.get(), &object_ref);
+      update_called = true;
+    } else {
+      EXPECT_EQ(obj.get(), newer_version.get());
+    }
+
+    return newer_version;
+  };
+  EXPECT_CALL(thread_dispatcher_, post(_));
+  EXPECT_CALL(object_ref, onDestroy());
+  EXPECT_CALL(*newer_version, onDestroy());
+  slot->runOnAllThreads(update_cb);
+
+  EXPECT_EQ(newer_version.get(), &slot->getTyped<TestThreadLocalObject>());
+
+  tls_.shutdownGlobalThreading();
   tls_.shutdownThread();
 }
 
